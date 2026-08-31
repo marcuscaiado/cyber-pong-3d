@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Cyber Pong 3D 🏓⚡</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
+    body { background:#070913; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
+    #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; max-height:600px; aspect-ratio:4/3; }
+    canvas { width:100%; height:100%; display:block; background:#070913; }
+    .arcade-nav { position:absolute; top:16px; right:16px; z-index:100; background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
+    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:22px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    #modal { position:absolute; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
+    #modal h1 { color:#00f5ff; font-size:42px; text-shadow:0 0 20px #00f5ff; }
+    .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#fff; padding:12px 32px; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
+    <div class="hud">PLAYER: <span id="p-score">0</span> | CPU: <span id="c-score">0</span></div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="modal">
+      <h1 id="modal-title">CYBER PONG 3D 🏓</h1>
+      <p style="font-size:16px; color:#aaa;">Move mouse / drag touch on screen to control paddle</p>
+      <button class="btn" onclick="startGame()">START MATCH ⚡</button>
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; border:1px solid #00f5ff;">ARCADE HUB 🕹️</a>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Audio
+    let audioCtx = null;
+    function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+    function playTone(freq, dur) {
+      try {
+        const c = getAudio(); const osc = c.createOscillator(); const g = c.createGain();
+        osc.frequency.value = freq; g.gain.setValueAtTime(0.12, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, c.currentTime + dur);
+        osc.connect(g); g.connect(c.destination); osc.start(); osc.stop(c.currentTime + dur);
+      } catch(e){}
+    }
+
+    let pScore = 0, cScore = 0, gameActive = false;
+    let playerX = 400, playerY = 520, cpuX = 400, cpuY = 120;
+    let ball = { x: 400, y: 300, z: 0.5, vx: 4, vy: 5, vz: 0.012, r: 10 };
+    let particles = [];
+
+    function startGame() {
+      pScore = 0; cScore = 0; resetBall();
+      document.getElementById('p-score').textContent = '0';
+      document.getElementById('c-score').textContent = '0';
+      document.getElementById('modal').style.display = 'none';
+      gameActive = true;
+      requestAnimationFrame(loop);
+    }
+
+    function resetBall() {
+      ball.x = 400; ball.y = 300; ball.z = 0.5;
+      ball.vx = (Math.random() - 0.5) * 6;
+      ball.vy = (Math.random() > 0.5 ? 4 : -4);
+      ball.vz = (Math.random() > 0.5 ? 0.014 : -0.014);
+    }
+
+    const setPaddlePos = (cx) => {
+      const rect = canvas.getBoundingClientRect();
+      playerX = Math.max(120, Math.min(680, ((cx - rect.left) / rect.width) * 800));
+    };
+
+    window.addEventListener('mousemove', e => setPaddlePos(e.clientX));
+    window.addEventListener('touchmove', e => { e.preventDefault(); setPaddlePos(e.touches[0].clientX); }, { passive:false });
+    window.addEventListener('touchstart', e => { e.preventDefault(); setPaddlePos(e.touches[0].clientX); }, { passive:false });
+
+    function loop() {
+      if (!gameActive) return;
+
+      // Ball Physics
+      ball.z += ball.vz;
+      ball.x += ball.vx;
+      ball.y += ball.vy * 0.3;
+
+      // Side Wall Bounces
+      if (ball.x < 140 || ball.x > 660) {
+        ball.vx *= -1;
+        playTone(350, 0.08);
+      }
+
+      // CPU AI tracking
+      cpuX += (ball.x - cpuX) * 0.08;
+      cpuX = Math.max(160, Math.min(640, cpuX));
+
+      // Player Paddle Hit (Z >= 0.9)
+      if (ball.z >= 0.9 && ball.vz > 0) {
+        if (Math.abs(ball.x - playerX) < 70) {
+          ball.vz *= -1.05;
+          ball.vx += (ball.x - playerX) * 0.12;
+          playTone(600, 0.1);
+          // Sparkles
+          for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, life:1, color:'#00f5ff' });
+        } else if (ball.z >= 1.05) {
+          // CPU point
+          cScore++;
+          document.getElementById('c-score').textContent = cScore;
+          playTone(150, 0.3);
+          checkWin();
+          resetBall();
+        }
+      }
+
+      // CPU Paddle Hit (Z <= 0.1)
+      if (ball.z <= 0.1 && ball.vz < 0) {
+        if (Math.abs(ball.x - cpuX) < 70) {
+          ball.vz *= -1.05;
+          ball.vx += (ball.x - cpuX) * 0.12;
+          playTone(450, 0.1);
+        } else if (ball.z <= 0) {
+          // Player point
+          pScore++;
+          document.getElementById('p-score').textContent = pScore;
+          playTone(900, 0.2);
+          checkWin();
+          resetBall();
+        }
+      }
+
+      // Render 3D Grid Court
+      ctx.fillStyle = '#070913'; ctx.fillRect(0, 0, 800, 600);
+
+      // 3D Perspective Tunnel
+      ctx.strokeStyle = 'rgba(0,245,255,0.25)'; ctx.lineWidth = 2;
+      ctx.strokeRect(100, 40, 600, 520); // Front
+      ctx.strokeRect(260, 180, 280, 240); // Back
+      // Connect corners
+      ctx.beginPath();
+      ctx.moveTo(100, 40); ctx.lineTo(260, 180);
+      ctx.moveTo(700, 40); ctx.lineTo(540, 180);
+      ctx.moveTo(100, 560); ctx.lineTo(260, 420);
+      ctx.moveTo(700, 560); ctx.lineTo(540, 420);
+      ctx.stroke();
+
+      // CPU Paddle (Z=0.1)
+      ctx.fillStyle = '#ff007f';
+      ctx.fillRect(cpuX - 45, 175, 90, 14);
+
+      // Player Paddle (Z=0.9)
+      ctx.fillStyle = '#00f5ff';
+      ctx.shadowColor = '#00f5ff'; ctx.shadowBlur = 20;
+      ctx.fillRect(playerX - 65, 520, 130, 20);
+      ctx.shadowBlur = 0;
+
+      // Ball Render with Depth Scale
+      const ballP = ball.z;
+      const bRad = 6 + ballP * 14;
+      const bY = 200 + ballP * 320;
+      ctx.fillStyle = ballP > 0.5 ? '#00f5ff' : '#ff007f';
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 25;
+      ctx.beginPath(); ctx.arc(ball.x, bY, bRad, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, 4, 4);
+        ctx.globalAlpha = 1;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function checkWin() {
+      if (pScore >= 7 || cScore >= 7) {
+        gameActive = false;
+        document.getElementById('modal-title').textContent = pScore >= 7 ? 'YOU WIN! 🏆' : 'CPU WINS! 🤖';
+        document.getElementById('modal').style.display = 'flex';
+      }
+    }
+  </script>
+</body>
+</html>
