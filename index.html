@@ -5,29 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Cyber Pong 3D 🏓⚡</title>
   <script src="arcade-leaderboard.js"></script>
+  <script src="arcade-multiplayer.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
     body { background:#070913; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
     #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; }
-    @media (max-width: 600px) { .hud { font-size:16px; } .arcade-nav { font-size:11px; padding:6px 10px; } }
+    @media (max-width: 600px) { .hud { font-size:14px; } .arcade-nav { font-size:11px; padding:6px 10px; } .mp-corner-btn { font-size:11px; padding:6px 10px; } }
     canvas { width:100%; height:100%; display:block; background:#070913; }
-    .arcade-nav { position:absolute; top:16px; right:16px; z-index:100; background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
-    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:22px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
+    .top-bar { position:absolute; top:16px; right:16px; display:flex; gap:10px; z-index:100; }
+    .arcade-nav { background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
+    .mp-corner-btn { background:rgba(255,0,127,0.25); border:2px solid #ff007f; color:#ff007f; padding:8px 16px; border-radius:8px; font-weight:bold; font-size:13px; cursor:pointer; box-shadow:0 0 15px rgba(255,0,127,0.4); }
+    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:20px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
     #modal { position:absolute; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
-    #modal h1 { color:#00f5ff; font-size:42px; text-shadow:0 0 20px #00f5ff; }
-    .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#fff; padding:12px 32px; font-size:18px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
+    #modal h1 { color:#00f5ff; font-size:38px; text-shadow:0 0 20px #00f5ff; text-align:center; }
+    .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#000; padding:12px 28px; font-size:16px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
+    .btn-mp { background:linear-gradient(135deg,#ff007f,#00f5ff); color:#fff; }
   </style>
 </head>
 <body>
   <div id="canvas-container">
-    <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
-    <div class="hud">PLAYER: <span id="p-score">0</span> | CPU: <span id="c-score">0</span></div>
+    <div class="top-bar">
+      <button class="mp-corner-btn" onclick="startMultiplayer()">⚔️ 1v1 ROOM</button>
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
+    </div>
+    <div class="hud" id="hud-text">PLAYER 1: <span id="p-score">0</span> | CPU: <span id="c-score">0</span></div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
     <div id="modal">
       <h1 id="modal-title">CYBER PONG 3D 🏓</h1>
-      <p style="font-size:16px; color:#aaa;">Move mouse / drag touch on screen to control paddle</p>
-      <button class="btn" onclick="startGame()">START MATCH ⚡</button>
-      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; border:1px solid #00f5ff;">ARCADE HUB 🕹️</a>
+      <p style="font-size:15px; color:#aaa; text-align:center;">Drag mouse / touch screen to control your paddle</p>
+      <div style="display:flex; flex-direction:column; gap:10px; width:260px;">
+        <button class="btn" onclick="startGame(false)">SOLO VS CPU 🤖</button>
+        <button class="btn btn-mp" onclick="startMultiplayer()">⚔️ 1v1 VS FRIEND (QR ROOM)</button>
+        <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff; text-align:center;">ARCADE HUB 🕹️</a>
+      </div>
     </div>
   </div>
 
@@ -49,16 +60,74 @@
 
     let pScore = 0, cScore = 0, gameActive = false;
     let playerX = 400, playerY = 520, cpuX = 400, cpuY = 120;
-    let ball = { x: 400, y: 300, z: 0.5, vx: 4, vy: 5, vz: 0.012, r: 10 };
+    let ball = { x: 400, y: 300, z: 0.5, vx: 4, vy: 5, vz: 0.014, r: 10 };
     let particles = [];
 
-    function startGame() {
+    // Multiplayer State
+    let isMultiplayer = false;
+    let isHost = true;
+
+    function startGame(multiplayer = false) {
       pScore = 0; cScore = 0; resetBall();
       document.getElementById('p-score').textContent = '0';
       document.getElementById('c-score').textContent = '0';
       document.getElementById('modal').style.display = 'none';
+      isMultiplayer = multiplayer;
+      
+      const hudText = document.getElementById('hud-text');
+      if (isMultiplayer) {
+        hudText.innerHTML = isHost 
+          ? `P1 (YOU): <span id="p-score">0</span> | P2: <span id="c-score">0</span>`
+          : `P1: <span id="p-score">0</span> | P2 (YOU): <span id="c-score">0</span>`;
+      } else {
+        hudText.innerHTML = `PLAYER: <span id="p-score">0</span> | CPU: <span id="c-score">0</span>`;
+      }
+
       gameActive = true;
       requestAnimationFrame(loop);
+    }
+
+    function startMultiplayer() {
+      if (window.ArcadeMultiplayer) {
+        window.ArcadeMultiplayer.createRoom('PONG');
+      }
+    }
+
+    // Initialize Multiplayer Handshake
+    if (window.ArcadeMultiplayer) {
+      window.ArcadeMultiplayer.init({
+        gamePrefix: 'PONG',
+        onConnect: ({ isHost: hostStatus }) => {
+          isHost = hostStatus;
+          startGame(true);
+        },
+        onData: (data) => {
+          if (!isMultiplayer) return;
+
+          if (isHost) {
+            // Host receives Guest paddle position
+            if (typeof data.p2X === 'number') {
+              cpuX = data.p2X;
+            }
+          } else {
+            // Guest receives ball physics & Host paddle from Host
+            if (data.ball) {
+              ball.x = data.ball.x;
+              ball.y = data.ball.y;
+              ball.z = data.ball.z;
+            }
+            if (typeof data.p1X === 'number') cpuX = data.p1X;
+            if (typeof data.p1Score === 'number') document.getElementById('p-score').textContent = data.p1Score;
+            if (typeof data.p2Score === 'number') document.getElementById('c-score').textContent = data.p2Score;
+            if (data.sound) playTone(data.sound.f, data.sound.d);
+            if (data.win) {
+              gameActive = false;
+              document.getElementById('modal-title').textContent = data.win;
+              document.getElementById('modal').style.display = 'flex';
+            }
+          }
+        }
+      });
     }
 
     function resetBall() {
@@ -71,6 +140,11 @@
     const setPaddlePos = (cx) => {
       const rect = canvas.getBoundingClientRect();
       playerX = Math.max(120, Math.min(680, ((cx - rect.left) / rect.width) * 800));
+      
+      // Guest transmits paddle position to Host
+      if (isMultiplayer && !isHost) {
+        window.ArcadeMultiplayer.send({ p2X: playerX });
+      }
     };
 
     window.addEventListener('mousemove', e => setPaddlePos(e.clientX));
@@ -80,52 +154,69 @@
     function loop() {
       if (!gameActive) return;
 
-      // Ball Physics
-      ball.z += ball.vz;
-      ball.x += ball.vx;
-      ball.y += ball.vy * 0.3;
+      // Only Host (or Solo) updates authoritative ball physics
+      if (!isMultiplayer || isHost) {
+        // Ball Physics
+        ball.z += ball.vz;
+        ball.x += ball.vx;
+        ball.y += ball.vy * 0.3;
 
-      // Side Wall Bounces
-      if (ball.x < 140 || ball.x > 660) {
-        ball.vx *= -1;
-        playTone(350, 0.08);
-      }
-
-      // CPU AI tracking
-      cpuX += (ball.x - cpuX) * 0.08;
-      cpuX = Math.max(160, Math.min(640, cpuX));
-
-      // Player Paddle Hit (Z >= 0.9)
-      if (ball.z >= 0.9 && ball.vz > 0) {
-        if (Math.abs(ball.x - playerX) < 70) {
-          ball.vz *= -1.05;
-          ball.vx += (ball.x - playerX) * 0.12;
-          playTone(600, 0.1);
-          // Sparkles
-          for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, life:1, color:'#00f5ff' });
-        } else if (ball.z >= 1.05) {
-          // CPU point
-          cScore++;
-          document.getElementById('c-score').textContent = cScore;
-          playTone(150, 0.3);
-          checkWin();
-          resetBall();
+        // Side Wall Bounces
+        if (ball.x < 140 || ball.x > 660) {
+          ball.vx *= -1;
+          playTone(350, 0.08);
+          if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 350, d: 0.08 } });
         }
-      }
 
-      // CPU Paddle Hit (Z <= 0.1)
-      if (ball.z <= 0.1 && ball.vz < 0) {
-        if (Math.abs(ball.x - cpuX) < 70) {
-          ball.vz *= -1.05;
-          ball.vx += (ball.x - cpuX) * 0.12;
-          playTone(450, 0.1);
-        } else if (ball.z <= 0) {
-          // Player point
-          pScore++;
-          document.getElementById('p-score').textContent = pScore;
-          playTone(900, 0.2);
-          checkWin();
-          resetBall();
+        // CPU AI tracking (Solo only)
+        if (!isMultiplayer) {
+          cpuX += (ball.x - cpuX) * 0.08;
+          cpuX = Math.max(160, Math.min(640, cpuX));
+        }
+
+        // P1 Paddle Hit (Z >= 0.9)
+        if (ball.z >= 0.9 && ball.vz > 0) {
+          if (Math.abs(ball.x - playerX) < 70) {
+            ball.vz *= -1.05;
+            ball.vx += (ball.x - playerX) * 0.12;
+            playTone(600, 0.1);
+            if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 600, d: 0.1 } });
+            for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, life:1, color:'#00f5ff' });
+          } else if (ball.z >= 1.05) {
+            // Point for P2 / CPU
+            cScore++;
+            document.getElementById('c-score').textContent = cScore;
+            playTone(150, 0.3);
+            checkWin();
+            resetBall();
+          }
+        }
+
+        // P2 Paddle Hit (Z <= 0.1)
+        if (ball.z <= 0.1 && ball.vz < 0) {
+          if (Math.abs(ball.x - cpuX) < 70) {
+            ball.vz *= -1.05;
+            ball.vx += (ball.x - cpuX) * 0.12;
+            playTone(450, 0.1);
+            if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 450, d: 0.1 } });
+          } else if (ball.z <= 0) {
+            // Point for P1
+            pScore++;
+            document.getElementById('p-score').textContent = pScore;
+            playTone(900, 0.2);
+            checkWin();
+            resetBall();
+          }
+        }
+
+        // Host transmits 60fps game packet to Guest
+        if (isMultiplayer) {
+          window.ArcadeMultiplayer.send({
+            ball: { x: ball.x, y: ball.y, z: ball.z },
+            p1X: playerX,
+            p1Score: pScore,
+            p2Score: cScore
+          });
         }
       }
 
@@ -134,9 +225,8 @@
 
       // 3D Perspective Tunnel
       ctx.strokeStyle = 'rgba(0,245,255,0.25)'; ctx.lineWidth = 2;
-      ctx.strokeRect(100, 40, 600, 520); // Front
-      ctx.strokeRect(260, 180, 280, 240); // Back
-      // Connect corners
+      ctx.strokeRect(100, 40, 600, 520);
+      ctx.strokeRect(260, 180, 280, 240);
       ctx.beginPath();
       ctx.moveTo(100, 40); ctx.lineTo(260, 180);
       ctx.moveTo(700, 40); ctx.lineTo(540, 180);
@@ -144,20 +234,31 @@
       ctx.moveTo(700, 560); ctx.lineTo(540, 420);
       ctx.stroke();
 
-      // CPU Paddle (Z=0.1)
-      ctx.fillStyle = '#ff007f';
-      ctx.fillRect(cpuX - 45, 175, 90, 14);
+      // Net (Middle Z = 0.5)
+      ctx.strokeStyle = 'rgba(255,0,127,0.4)'; ctx.setLineDash([8, 8]);
+      ctx.strokeRect(180, 110, 440, 380);
+      ctx.setLineDash([]);
 
-      // Player Paddle (Z=0.9)
+      // Draw P2 / CPU Paddle (Back Z = 0.05)
+      const cpuP = 0.35;
+      const cpuPadW = 100 * cpuP;
+      const cpuPadH = 40 * cpuP;
+      const cPaddleX = isMultiplayer && !isHost ? playerX : cpuX;
+      ctx.fillStyle = '#ff007f';
+      ctx.shadowColor = '#ff007f'; ctx.shadowBlur = 15;
+      ctx.fillRect(cPaddleX - cpuPadW/2, 290, cpuPadW, cpuPadH);
+
+      // Draw P1 Paddle (Front Z = 0.95)
+      const p1PadX = isMultiplayer && !isHost ? cpuX : playerX;
       ctx.fillStyle = '#00f5ff';
       ctx.shadowColor = '#00f5ff'; ctx.shadowBlur = 20;
-      ctx.fillRect(playerX - 65, 520, 130, 20);
+      ctx.fillRect(p1PadX - 60, 510, 120, 20);
       ctx.shadowBlur = 0;
 
-      // Ball Render with Depth Scale
-      const ballP = ball.z;
-      const bRad = 6 + ballP * 14;
-      const bY = 200 + ballP * 320;
+      // Draw 3D Ball
+      const ballP = 0.35 + ball.z * 0.65;
+      const bRad = ball.r * ballP;
+      const bY = 200 + ball.z * 300 + (ball.y - 300) * ballP;
       ctx.fillStyle = ballP > 0.5 ? '#00f5ff' : '#ff007f';
       ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 25;
       ctx.beginPath(); ctx.arc(ball.x, bY, bRad, 0, Math.PI * 2); ctx.fill();
@@ -179,7 +280,14 @@
     function checkWin() {
       if (pScore >= 7 || cScore >= 7) {
         gameActive = false;
-        document.getElementById('modal-title').textContent = pScore >= 7 ? 'YOU WIN! 🏆' : 'CPU WINS! 🤖';
+        let winText = '';
+        if (isMultiplayer) {
+          winText = pScore >= 7 ? (isHost ? 'YOU WIN! 🏆' : 'P1 WINS! 🏆') : (isHost ? 'P2 WINS! 🏆' : 'YOU WIN! 🏆');
+          window.ArcadeMultiplayer.send({ win: winText });
+        } else {
+          winText = pScore >= 7 ? 'YOU WIN! 🏆' : 'CPU WINS! 🤖';
+        }
+        document.getElementById('modal-title').textContent = winText;
         document.getElementById('modal').style.display = 'flex';
         try {
           if (window.ArcadeLeaderboard) {
