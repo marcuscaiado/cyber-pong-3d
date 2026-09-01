@@ -60,7 +60,7 @@
 
     let pScore = 0, cScore = 0, gameActive = false;
     let playerX = 400, playerY = 520, cpuX = 400, cpuY = 120;
-    let ball = { x: 400, y: 300, z: 0.5, vx: 4, vy: 5, vz: 0.014, r: 10 };
+    let ball = { x: 400, y: 300, z: 0.5, vx: 1.5, vy: 1.5, vz: 0.007, r: 10 };
     let particles = [];
 
     // Multiplayer State
@@ -132,9 +132,9 @@
 
     function resetBall() {
       ball.x = 400; ball.y = 300; ball.z = 0.5;
-      ball.vx = (Math.random() - 0.5) * 6;
-      ball.vy = (Math.random() > 0.5 ? 4 : -4);
-      ball.vz = (Math.random() > 0.5 ? 0.014 : -0.014);
+      ball.vx = (Math.random() - 0.5) * 2.4;
+      ball.vy = (Math.random() > 0.5 ? 1.5 : -1.5);
+      ball.vz = (Math.random() > 0.5 ? 0.007 : -0.007);
     }
 
     const setPaddlePos = (cx) => {
@@ -159,7 +159,7 @@
         // Ball Physics
         ball.z += ball.vz;
         ball.x += ball.vx;
-        ball.y += ball.vy * 0.3;
+        ball.y += ball.vy * 0.25;
 
         // Side Wall Bounces
         if (ball.x < 140 || ball.x > 660) {
@@ -170,19 +170,20 @@
 
         // CPU AI tracking (Solo only)
         if (!isMultiplayer) {
-          cpuX += (ball.x - cpuX) * 0.08;
+          cpuX += (ball.x - cpuX) * 0.065;
           cpuX = Math.max(160, Math.min(640, cpuX));
         }
 
-        // P1 Paddle Hit (Z >= 0.9)
+        // P1 Paddle Hit (Front Z >= 0.9)
         if (ball.z >= 0.9 && ball.vz > 0) {
-          if (Math.abs(ball.x - playerX) < 70) {
-            ball.vz *= -1.05;
-            ball.vx += (ball.x - playerX) * 0.12;
+          if (Math.abs(ball.x - playerX) < 75) {
+            const nextSpeed = Math.min(0.013, Math.abs(ball.vz) * 1.025);
+            ball.vz = -nextSpeed;
+            ball.vx = (ball.x - playerX) * 0.05;
             playTone(600, 0.1);
             if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 600, d: 0.1 } });
-            for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*8, vy:(Math.random()-0.5)*8, life:1, color:'#00f5ff' });
-          } else if (ball.z >= 1.05) {
+            for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5, life:1, color:'#00f5ff' });
+          } else if (ball.z >= 1.06) {
             // Point for P2 / CPU
             cScore++;
             document.getElementById('c-score').textContent = cScore;
@@ -192,14 +193,15 @@
           }
         }
 
-        // P2 Paddle Hit (Z <= 0.1)
+        // P2 Paddle Hit (Back Z <= 0.1)
         if (ball.z <= 0.1 && ball.vz < 0) {
-          if (Math.abs(ball.x - cpuX) < 70) {
-            ball.vz *= -1.05;
-            ball.vx += (ball.x - cpuX) * 0.12;
+          if (Math.abs(ball.x - cpuX) < 65) {
+            const nextSpeed = Math.min(0.013, Math.abs(ball.vz) * 1.025);
+            ball.vz = nextSpeed;
+            ball.vx = (ball.x - cpuX) * 0.05;
             playTone(450, 0.1);
             if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 450, d: 0.1 } });
-          } else if (ball.z <= 0) {
+          } else if (ball.z <= -0.04) {
             // Point for P1
             pScore++;
             document.getElementById('p-score').textContent = pScore;

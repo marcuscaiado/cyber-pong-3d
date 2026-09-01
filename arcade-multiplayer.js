@@ -41,6 +41,20 @@
       });
     },
 
+    _getPeerConfig: function() {
+      return {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' }
+          ]
+        }
+      };
+    },
+
     // Host creates a room
     createRoom: function(gamePrefix = 'ROOM') {
       loadPeerJS(() => {
@@ -48,14 +62,11 @@
         this.roomId = `${gamePrefix}-${randCode}`;
         this.isHost = true;
 
-        this.peer = new window.Peer(this.roomId, {
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-          }
-        });
+        if (this.peer) {
+          try { this.peer.destroy(); } catch(e){}
+        }
+
+        this.peer = new window.Peer(this.roomId, this._getPeerConfig());
 
         this.peer.on('open', (id) => {
           this.showHostModal(id);
@@ -64,8 +75,21 @@
         this.peer.on('connection', (connection) => {
           this.conn = connection;
           this.setupConnectionHandlers();
-          this.hideModal();
-          if (this.onConnectCallback) this.onConnectCallback({ isHost: true, peerId: this.conn.peer });
+
+          const triggerHostStart = () => {
+            this.hideModal();
+            // Send sync packet to guest confirming ready
+            this.send({ __mp_type: 'START_MATCH' });
+            if (this.onConnectCallback) {
+              this.onConnectCallback({ isHost: true, peerId: this.conn.peer });
+            }
+          };
+
+          if (this.conn.open) {
+            triggerHostStart();
+          } else {
+            this.conn.on('open', triggerHostStart);
+          }
         });
 
         this.peer.on('error', (err) => {
@@ -84,27 +108,45 @@
         this.isHost = false;
         this.showGuestConnectingModal(roomId);
 
-        this.peer = new window.Peer({
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+        if (this.peer) {
+          try { this.peer.destroy(); } catch(e){}
+        }
+
+        this.peer = new window.Peer(this._getPeerConfig());
+
+        let connectionTimeout = setTimeout(() => {
+          if (!this.conn || !this.conn.open) {
+            console.warn('P2P Guest connection timed out');
+            const statusEl = document.querySelector('.mp-status');
+            if (statusEl) {
+              statusEl.innerHTML = `<span style="color:#ff007f;">Connection slow or room full.</span> <button class="mp-btn mp-btn-cyan" style="padding:4px 10px; margin-left:8px;" onclick="window.location.reload()">Retry 🔄</button>`;
+            }
+          }
+        }, 12000);
+
+        this.peer.on('open', () => {
+          this.conn = this.peer.connect(roomId, { reliable: true });
+          this.setupConnectionHandlers();
+
+          const triggerGuestStart = () => {
+            clearTimeout(connectionTimeout);
+            this.hideModal();
+            if (this.onConnectCallback) {
+              this.onConnectCallback({ isHost: false, peerId: roomId });
+            }
+          };
+
+          if (this.conn.open) {
+            triggerGuestStart();
+          } else {
+            this.conn.on('open', triggerGuestStart);
           }
         });
 
-        this.peer.on('open', () => {
-          this.conn = this.peer.connect(roomId, { reliable: false }); // UDP style for real-time gaming
-          this.setupConnectionHandlers();
-          this.conn.on('open', () => {
-            this.hideModal();
-            if (this.onConnectCallback) this.onConnectCallback({ isHost: false, peerId: roomId });
-          });
-        });
-
         this.peer.on('error', (err) => {
+          clearTimeout(connectionTimeout);
           console.error('Guest connection error:', err);
-          alert('Could not connect to room: ' + roomId + '. Room may be full or closed.');
+          alert('Could not connect to room: ' + roomId + '. Room may be closed or invalid.');
           this.hideModal();
         });
       });
@@ -113,7 +155,9 @@
     // Send high-speed game state or input packet
     send: function(data) {
       if (this.conn && this.conn.open) {
-        this.conn.send(data);
+        try {
+          this.conn.send(data);
+        } catch(e) {}
       }
     },
 
@@ -121,6 +165,10 @@
       if (!this.conn) return;
 
       this.conn.on('data', (data) => {
+        if (data && data.__mp_type === 'START_MATCH') {
+          this.hideModal();
+          return;
+        }
         if (this.onDataCallback) this.onDataCallback(data);
       });
 
@@ -128,6 +176,10 @@
         alert('Opponent disconnected!');
         window.location.hash = '';
         window.location.reload();
+      });
+
+      this.conn.on('error', (err) => {
+        console.warn('P2P DataChannel Error:', err);
       });
     },
 
