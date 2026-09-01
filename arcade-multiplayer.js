@@ -25,11 +25,14 @@
     onDataCallback: null,
     onConnectCallback: null,
 
+    connected: false,
+
     // Initialize 1v1 Room
     init: function(config) {
       const { gamePrefix = 'ARCADE', onConnect, onData, onDisconnect } = config;
       this.onDataCallback = onData;
       this.onConnectCallback = onConnect;
+      this.connected = false;
 
       loadPeerJS(() => {
         // Check if URL has #room=XXXX
@@ -61,6 +64,7 @@
         const randCode = Math.random().toString(36).substring(2, 6).toUpperCase();
         this.roomId = `${gamePrefix}-${randCode}`;
         this.isHost = true;
+        this.connected = false;
 
         if (this.peer) {
           try { this.peer.destroy(); } catch(e){}
@@ -78,9 +82,12 @@
 
           const triggerHostStart = () => {
             this.hideModal();
-            // Send sync packet to guest confirming ready
+            // Send sync packet to guest confirming ready (repeated to prevent packet drop)
             this.send({ __mp_type: 'START_MATCH' });
-            if (this.onConnectCallback) {
+            setTimeout(() => this.send({ __mp_type: 'START_MATCH' }), 100);
+            setTimeout(() => this.send({ __mp_type: 'START_MATCH' }), 300);
+            if (!this.connected && this.onConnectCallback) {
+              this.connected = true;
               this.onConnectCallback({ isHost: true, peerId: this.conn.peer });
             }
           };
@@ -106,6 +113,7 @@
       loadPeerJS(() => {
         this.roomId = roomId;
         this.isHost = false;
+        this.connected = false;
         this.showGuestConnectingModal(roomId);
 
         if (this.peer) {
@@ -131,7 +139,9 @@
           const triggerGuestStart = () => {
             clearTimeout(connectionTimeout);
             this.hideModal();
-            if (this.onConnectCallback) {
+            this.send({ __mp_type: 'GUEST_READY' });
+            if (!this.connected && this.onConnectCallback) {
+              this.connected = true;
               this.onConnectCallback({ isHost: false, peerId: roomId });
             }
           };
@@ -167,8 +177,30 @@
       this.conn.on('data', (data) => {
         if (data && data.__mp_type === 'START_MATCH') {
           this.hideModal();
+          this.send({ __mp_type: 'GUEST_READY' });
+          if (!this.connected && this.onConnectCallback) {
+            this.connected = true;
+            this.onConnectCallback({ isHost: false, peerId: this.roomId });
+          }
           return;
         }
+
+        if (data && data.__mp_type === 'GUEST_READY') {
+          this.hideModal();
+          if (!this.connected && this.onConnectCallback) {
+            this.connected = true;
+            this.onConnectCallback({ isHost: true, peerId: this.conn ? this.conn.peer : this.roomId });
+          }
+          return;
+        }
+
+        // Auto-heal: If any game data arrives before connect callback fired, force start
+        if (!this.connected && this.onConnectCallback) {
+          this.connected = true;
+          this.hideModal();
+          this.onConnectCallback({ isHost: this.isHost, peerId: this.roomId });
+        }
+
         if (this.onDataCallback) this.onDataCallback(data);
       });
 
