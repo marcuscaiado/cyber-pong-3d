@@ -3,310 +3,753 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Cyber Pong 3D 🏓⚡</title>
+  <title>Kawaii Table Tennis 3D 🏓🌸 — Instant Hit & Clean 3D</title>
   <script src="arcade-leaderboard.js"></script>
-  <script src="arcade-multiplayer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
+    :root {
+      --primary: #ff5e97;
+      --secondary: #00e5ff;
+      --accent: #ffd166;
+      --bg: #141124;
+      --panel: rgba(26, 20, 42, 0.9);
+    }
     * { margin:0; padding:0; box-sizing:border-box; touch-action:none; user-select:none; }
-    body { background:#070913; color:#fff; font-family:'Segoe UI',sans-serif; overflow:hidden; display:flex; justify-content:center; align-items:center; height:100vh; }
-    #canvas-container { position:relative; width:100vw; height:100vh; max-width:800px; }
-    @media (max-width: 600px) { .hud { font-size:14px; } .arcade-nav { font-size:11px; padding:6px 10px; } .mp-corner-btn { font-size:11px; padding:6px 10px; } }
-    canvas { width:100%; height:100%; display:block; background:#070913; }
-    .top-bar { position:absolute; top:16px; right:16px; display:flex; gap:10px; z-index:100; }
-    .arcade-nav { background:rgba(0,0,0,0.7); border:2px solid #00f5ff; color:#00f5ff; padding:8px 16px; border-radius:8px; font-weight:bold; text-decoration:none; font-size:13px; box-shadow:0 0 15px rgba(0,245,255,0.4); }
-    .mp-corner-btn { background:rgba(255,0,127,0.25); border:2px solid #ff007f; color:#ff007f; padding:8px 16px; border-radius:8px; font-weight:bold; font-size:13px; cursor:pointer; box-shadow:0 0 15px rgba(255,0,127,0.4); }
-    .hud { position:absolute; top:16px; left:16px; font-family:monospace; font-size:20px; font-weight:bold; color:#00f5ff; text-shadow:0 0 10px #00f5ff; pointer-events:none; }
-    #modal { position:absolute; inset:0; background:rgba(0,0,0,0.85); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; z-index:200; }
-    #modal h1 { color:#00f5ff; font-size:38px; text-shadow:0 0 20px #00f5ff; text-align:center; }
-    .btn { background:linear-gradient(135deg,#00f5ff,#ff007f); border:none; color:#000; padding:12px 28px; font-size:16px; font-weight:bold; border-radius:8px; cursor:pointer; text-decoration:none; box-shadow:0 0 20px rgba(0,245,255,0.5); }
-    .btn-mp { background:linear-gradient(135deg,#ff007f,#00f5ff); color:#fff; }
+    body {
+      background: var(--bg);
+      color: #fff;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      cursor: none; /* Hide default OS mouse cursor so ONLY the 3D Paddle is your pointer! */
+    }
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas#webgl-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Top HUD */
+    .hud-header {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 50;
+    }
+    .score-card {
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      border: 2px solid rgba(255, 94, 151, 0.4);
+      border-radius: 20px;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(255, 94, 151, 0.2);
+      pointer-events: auto;
+    }
+    .player-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #d8b4e2;
+    }
+    .stat-val {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--secondary);
+      text-shadow: 0 0 12px rgba(0, 229, 255, 0.6);
+    }
+    .stat-val.you {
+      color: var(--primary);
+      text-shadow: 0 0 12px rgba(255, 94, 151, 0.6);
+    }
+    .vs-text {
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--accent);
+    }
+    .rally-pill {
+      background: rgba(255, 209, 102, 0.2);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 800;
+      text-shadow: 0 0 10px rgba(255, 209, 102, 0.5);
+    }
+
+    .arcade-btn {
+      background: var(--panel);
+      border: 2px solid rgba(255, 94, 151, 0.5);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: default;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      transition: all 0.2s;
+      pointer-events: auto;
+    }
+    .arcade-btn:hover {
+      background: var(--primary);
+      box-shadow: 0 0 20px rgba(255, 94, 151, 0.8);
+      transform: translateY(-2px);
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(14, 10, 24, 0.85);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+      cursor: default;
+    }
+    .modal-card {
+      background: var(--panel);
+      border: 2px solid rgba(255, 94, 151, 0.5);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.7), 0 0 30px rgba(255, 94, 151, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-title {
+      font-size: 32px;
+      font-weight: 900;
+      color: var(--primary);
+      text-shadow: 0 0 16px rgba(255, 94, 151, 0.6);
+    }
+    .modal-desc {
+      color: #e0d4f7;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .primary-btn {
+      background: linear-gradient(135deg, #ff5e97, #ff8fae);
+      color: #fff;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(255, 94, 151, 0.5);
+      transition: all 0.2s;
+    }
+    .primary-btn:hover {
+      transform: scale(1.04);
+      box-shadow: 0 12px 30px rgba(255, 94, 151, 0.8);
+    }
+
+    /* Controls Hint */
+    .controls-hint {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #e0d4f7;
+      pointer-events: none;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
-  <div id="canvas-container">
-    <div class="top-bar">
-      <button class="mp-corner-btn" onclick="startMultiplayer()">⚔️ 1v1 ROOM</button>
-      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-nav">🕹️ Arcade Hub</a>
+  <div id="game-container">
+    <canvas id="webgl-canvas"></canvas>
+
+    <div class="hud-header">
+      <div class="score-card">
+        <div class="player-stat">
+          <span class="stat-label">🌸 YOU</span>
+          <span id="score-player" class="stat-val you">0</span>
+        </div>
+        <span class="vs-text">VS</span>
+        <div class="player-stat">
+          <span class="stat-label">🤖 CPU</span>
+          <span id="score-cpu" class="stat-val">0</span>
+        </div>
+        <div class="rally-pill">
+          ⚡ RALLY: <span id="rally-count">0</span>
+        </div>
+      </div>
+
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-btn">
+        🕹️ <span>Arcade Hub</span>
+      </a>
     </div>
-    <div class="hud" id="hud-text">PLAYER 1: <span id="p-score">0</span> | CPU: <span id="c-score">0</span></div>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    
-    <div id="modal">
-      <h1 id="modal-title">CYBER PONG 3D 🏓</h1>
-      <p style="font-size:15px; color:#aaa; text-align:center;">Drag mouse / touch screen to control your paddle</p>
-      <div style="display:flex; flex-direction:column; gap:10px; width:260px;">
-        <button class="btn" onclick="startGame(false)">SOLO VS CPU 🤖</button>
-        <button class="btn btn-mp" onclick="startMultiplayer()">⚔️ 1v1 VS FRIEND (QR ROOM)</button>
-        <a href="https://marcuscaiado.github.io/marcus-arcade/" class="btn" style="background:#222; color:#fff; border:1px solid #00f5ff; text-align:center;">ARCADE HUB 🕹️</a>
+
+    <div class="controls-hint">
+      <span>🏓 Your Kawaii Paddle IS your mouse! Move anywhere across the court to hit the ball! ✨</span>
+    </div>
+
+    <!-- Start Modal -->
+    <div id="start-modal" class="modal-overlay">
+      <div class="modal-card">
+        <h1 class="modal-title">KAWAII PONG 3D 🏓🌸</h1>
+        <p class="modal-desc">
+          Super easy & fun! Move your 3D paddle with your mouse/touch to hit sweet rallies! First to 7 points wins!
+        </p>
+        <button class="primary-btn" onclick="startMatch()">SERVE BALL ➔</button>
+      </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameover-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card">
+        <h1 id="over-title" class="modal-title">🎉 MATCH WON!</h1>
+        <p id="over-desc" class="modal-desc">
+          Highest rally: <b id="final-rally" style="color:var(--accent)">0</b> hits!
+        </p>
+        <button class="primary-btn" onclick="startMatch()">PLAY AGAIN ➔</button>
       </div>
     </div>
   </div>
 
   <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-
-    // Audio
+    /* ==========================================================================
+       1. SYNTHESIZED SOUND FX (Web Audio API)
+       ========================================================================== */
     let audioCtx = null;
-    function getAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
-    function playTone(freq, dur) {
+    let isSoundMuted = false;
+
+    function getAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // Unlock AudioContext on first user interaction anywhere
+    ['pointerdown', 'keydown', 'touchstart', 'click'].forEach(evt => {
+      window.addEventListener(evt, () => {
+        try { getAudio(); } catch(e){}
+      }, { once: true });
+    });
+
+    function playSound(type) {
+      if (isSoundMuted) return;
       try {
-        const c = getAudio(); const osc = c.createOscillator(); const g = c.createGain();
-        osc.frequency.value = freq; g.gain.setValueAtTime(0.12, c.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, c.currentTime + dur);
-        osc.connect(g); g.connect(c.destination); osc.start(); osc.stop(c.currentTime + dur);
-      } catch(e){}
-    }
+        const ctx = getAudio();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
-    let pScore = 0, cScore = 0, gameActive = false;
-    let playerX = 400, playerY = 520, cpuX = 400, cpuY = 120;
-    // Calibrated ball speed: Smooth, balanced and responsive
-    let ball = { x: 400, y: 300, z: 0.5, vx: 0.8, vy: 0.8, vz: 0.0035, r: 10 };
-    let particles = [];
-
-    // Multiplayer State
-    let isMultiplayer = false;
-    let isHost = true;
-
-    function startGame(multiplayer = false) {
-      pScore = 0; cScore = 0; resetBall();
-      document.getElementById('p-score').textContent = '0';
-      document.getElementById('c-score').textContent = '0';
-      document.getElementById('modal').style.display = 'none';
-      isMultiplayer = multiplayer;
-      
-      const hudText = document.getElementById('hud-text');
-      if (isMultiplayer) {
-        hudText.innerHTML = isHost 
-          ? `P1 (YOU): <span id="p-score">0</span> | P2: <span id="c-score">0</span>`
-          : `P1: <span id="p-score">0</span> | P2 (YOU): <span id="c-score">0</span>`;
-      } else {
-        hudText.innerHTML = `PLAYER: <span id="p-score">0</span> | CPU: <span id="c-score">0</span>`;
-      }
-
-      gameActive = true;
-      requestAnimationFrame(loop);
-    }
-
-    function startMultiplayer() {
-      if (window.ArcadeMultiplayer) {
-        window.ArcadeMultiplayer.createRoom('PONG');
-      }
-    }
-
-    // Initialize Multiplayer Handshake
-    if (window.ArcadeMultiplayer) {
-      window.ArcadeMultiplayer.init({
-        gamePrefix: 'PONG',
-        onConnect: ({ isHost: hostStatus }) => {
-          isHost = hostStatus;
-          startGame(true);
-        },
-        onData: (data) => {
-          if (!isMultiplayer) return;
-
-          // Auto-start game if guest receives incoming packets
-          if (!gameActive && (data.ball || typeof data.p1X === 'number')) {
-            gameActive = true;
-            document.getElementById('modal').style.display = 'none';
-            requestAnimationFrame(loop);
-          }
-
-          if (isHost) {
-            // Host receives Guest paddle position
-            if (typeof data.p2X === 'number') {
-              cpuX = data.p2X;
-            }
-          } else {
-            // Guest receives ball physics & Host paddle from Host
-            if (data.ball) {
-              ball.x = data.ball.x;
-              ball.y = data.ball.y;
-              ball.z = data.ball.z;
-            }
-            if (typeof data.p1X === 'number') cpuX = data.p1X;
-            if (typeof data.p1Score === 'number') document.getElementById('p-score').textContent = data.p1Score;
-            if (typeof data.p2Score === 'number') document.getElementById('c-score').textContent = data.p2Score;
-            if (data.sound) playTone(data.sound.f, data.sound.d);
-            if (data.win) {
-              gameActive = false;
-              document.getElementById('modal-title').textContent = data.win;
-              document.getElementById('modal').style.display = 'flex';
-            }
-          }
+        if (type === 'paddle-hit') {
+          // Playful rubber ping
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(580, now);
+          osc.frequency.exponentialRampToValueAtTime(860, now + 0.08);
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'table-bounce') {
+          // Hollow wood table ping
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(160, now + 0.06);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.08);
+        } else if (type === 'point-player') {
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+            const o = ctx.createOscillator(); const g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(freq, now + i * 0.07);
+            g.gain.setValueAtTime(0.22, now + i * 0.07);
+            g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.22);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(now + i * 0.07); o.stop(now + i * 0.07 + 0.22);
+          });
+        } else if (type === 'point-cpu') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(120, now + 0.25);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(now); osc.stop(now + 0.28);
         }
+      } catch (e) {}
+    }
+
+    /* ==========================================================================
+       2. THREE.JS 3D SCENE & COURT SETUP
+       ========================================================================== */
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x141124);
+    scene.fog = new THREE.FogExp2(0x141124, 0.008);
+
+    // Camera (Crisp, direct top-down isometric view)
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.5, 300);
+    camera.position.set(0, 22, 26);
+    camera.lookAt(0, 4, -4);
+
+    // Warm, friendly lighting
+    scene.add(new THREE.AmbientLight(0xfff0f5, 0.9));
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    sunLight.position.set(15, 40, 20);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    const pinkFill = new THREE.PointLight(0xff5e97, 1.3, 60);
+    pinkFill.position.set(-18, 12, 5);
+    scene.add(pinkFill);
+
+    const cyanFill = new THREE.PointLight(0x00e5ff, 1.1, 60);
+    cyanFill.position.set(18, 12, -15);
+    scene.add(cyanFill);
+
+    // Table Dimensions
+    const TABLE_WIDTH = 18;
+    const TABLE_LENGTH = 32;
+    const TABLE_HEIGHT = 6.0;
+    const NET_HEIGHT = 1.6;
+
+    // Build Table
+    function createTable() {
+      const tableGroup = new THREE.Group();
+
+      // Top Table Board
+      const topGeo = new THREE.BoxGeometry(TABLE_WIDTH, 0.8, TABLE_LENGTH);
+      const topMat = new THREE.MeshStandardMaterial({
+        color: 0x2b589a,
+        roughness: 0.3,
+        metalness: 0.05
       });
-    }
+      const topMesh = new THREE.Mesh(topGeo, topMat);
+      topMesh.position.y = TABLE_HEIGHT;
+      topMesh.receiveShadow = true;
+      tableGroup.add(topMesh);
 
-    function resetBall() {
-      ball.x = 400; ball.y = 300; ball.z = 0.5;
-      // Controlled, balanced initial speed
-      ball.vx = (Math.random() - 0.5) * 1.0;
-      ball.vy = (Math.random() > 0.5 ? 0.6 : -0.6);
-      ball.vz = (Math.random() > 0.5 ? 0.0035 : -0.0035);
-    }
-
-    const setPaddlePos = (cx) => {
-      const rect = canvas.getBoundingClientRect();
-      playerX = Math.max(120, Math.min(680, ((cx - rect.left) / rect.width) * 800));
+      // White Border Lines
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       
-      // Guest transmits paddle position to Host
-      if (isMultiplayer && !isHost) {
-        window.ArcadeMultiplayer.send({ p2X: playerX });
-      }
+      const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(0.25, TABLE_LENGTH), lineMat);
+      centerLine.rotation.x = -Math.PI / 2;
+      centerLine.position.y = TABLE_HEIGHT + 0.41;
+      tableGroup.add(centerLine);
+
+      const leftEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, TABLE_LENGTH), lineMat);
+      leftEdge.rotation.x = -Math.PI / 2;
+      leftEdge.position.set(-TABLE_WIDTH / 2 + 0.15, TABLE_HEIGHT + 0.41, 0);
+      tableGroup.add(leftEdge);
+
+      const rightEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, TABLE_LENGTH), lineMat);
+      rightEdge.rotation.x = -Math.PI / 2;
+      rightEdge.position.set(TABLE_WIDTH / 2 - 0.15, TABLE_HEIGHT + 0.41, 0);
+      tableGroup.add(rightEdge);
+
+      // Net
+      const netGeo = new THREE.BoxGeometry(TABLE_WIDTH + 1.6, NET_HEIGHT, 0.15);
+      const netMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.85,
+        roughness: 0.5
+      });
+      const net = new THREE.Mesh(netGeo, netMat);
+      net.position.set(0, TABLE_HEIGHT + NET_HEIGHT / 2 + 0.4, 0);
+      net.castShadow = true;
+      tableGroup.add(net);
+
+      // Net Top Ribbon
+      const netRibbon = new THREE.Mesh(new THREE.BoxGeometry(TABLE_WIDTH + 1.8, 0.25, 0.25), lineMat);
+      netRibbon.position.set(0, TABLE_HEIGHT + NET_HEIGHT + 0.4, 0);
+      tableGroup.add(netRibbon);
+
+      // Wooden Legs
+      const legGeo = new THREE.CylinderGeometry(0.6, 0.6, TABLE_HEIGHT, 16);
+      const legMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.4 });
+      [[-TABLE_WIDTH / 2 + 1.5, -TABLE_LENGTH / 2 + 2],
+       [TABLE_WIDTH / 2 - 1.5, -TABLE_LENGTH / 2 + 2],
+       [-TABLE_WIDTH / 2 + 1.5, TABLE_LENGTH / 2 - 2],
+       [TABLE_WIDTH / 2 - 1.5, TABLE_LENGTH / 2 - 2]].forEach(([x, z]) => {
+        const leg = new THREE.Mesh(legGeo, legMat);
+        leg.position.set(x, TABLE_HEIGHT / 2, z);
+        leg.castShadow = true;
+        tableGroup.add(leg);
+      });
+
+      // Stadium Floor
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(50, 48), new THREE.MeshStandardMaterial({ color: 0x1f1933, roughness: 0.8 }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0;
+      floor.receiveShadow = true;
+      tableGroup.add(floor);
+
+      scene.add(tableGroup);
+    }
+    createTable();
+
+    /* ==========================================================================
+       3. EXTRA-LARGE KAWAII 3D PADDLES (Your Mouse IS The Paddle!)
+       ========================================================================== */
+    function createKawaiiPaddle(isPlayer = true) {
+      const paddleGroup = new THREE.Group();
+
+      // Big Wide Blade
+      const bladeColor = isPlayer ? 0xff4d79 : 0x00d2d3;
+      const bladeGeo = new THREE.CylinderGeometry(3.0, 3.0, 0.45, 32);
+      const bladeMat = new THREE.MeshStandardMaterial({
+        color: bladeColor,
+        roughness: 0.3,
+        metalness: 0.1
+      });
+      const blade = new THREE.Mesh(bladeGeo, bladeMat);
+      blade.rotation.x = Math.PI / 2;
+      blade.castShadow = true;
+      paddleGroup.add(blade);
+
+      // Wooden Handle
+      const handleGeo = new THREE.CylinderGeometry(0.45, 0.55, 3.2, 16);
+      const handleMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.4 });
+      const handle = new THREE.Mesh(handleGeo, handleMat);
+      handle.position.y = -3.2;
+      handle.castShadow = true;
+      paddleGroup.add(handle);
+
+      // Big Kawaii Eyes
+      const eyeGeo = new THREE.SphereGeometry(0.42, 16, 16);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+      const pupilGeo = new THREE.SphereGeometry(0.14, 12, 12);
+      const pupilMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      // Left Eye
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-1.0, 0.35, 0.28);
+      const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+      leftPupil.position.set(-0.06, 0.1, 0.28);
+      leftEye.add(leftPupil);
+      paddleGroup.add(leftEye);
+
+      // Right Eye
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(1.0, 0.35, 0.28);
+      const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+      rightPupil.position.set(0.06, 0.1, 0.28);
+      rightEye.add(rightPupil);
+      paddleGroup.add(rightEye);
+
+      // Blush Cheeks
+      const blushGeo = new THREE.CircleGeometry(0.38, 16);
+      const blushMat = new THREE.MeshBasicMaterial({ color: 0xff9ec7, transparent: true, opacity: 0.85 });
+      const leftBlush = new THREE.Mesh(blushGeo, blushMat);
+      leftBlush.position.set(-1.6, -0.2, 0.3);
+      paddleGroup.add(leftBlush);
+      const rightBlush = new THREE.Mesh(blushGeo, blushMat);
+      rightBlush.position.set(1.6, -0.2, 0.3);
+      paddleGroup.add(rightBlush);
+
+      scene.add(paddleGroup);
+      return paddleGroup;
+    }
+
+    const playerPaddle = createKawaiiPaddle(true);
+    playerPaddle.position.set(0, TABLE_HEIGHT + 1.6, TABLE_LENGTH / 2);
+
+    const cpuPaddle = createKawaiiPaddle(false);
+    cpuPaddle.position.set(0, TABLE_HEIGHT + 1.6, -TABLE_LENGTH / 2);
+    cpuPaddle.rotation.y = Math.PI;
+
+    /* ==========================================================================
+       4. 3D PING PONG BALL & DYNAMIC SHADOW
+       ========================================================================== */
+    const BALL_RADIUS = 0.9;
+    const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 24, 24);
+    const ballMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xffe66d,
+      emissiveIntensity: 0.25,
+      roughness: 0.2
+    });
+    const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+    ballMesh.castShadow = true;
+    scene.add(ballMesh);
+
+    // Ground Shadow
+    const shadowGeo = new THREE.CircleGeometry(0.9, 16);
+    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 });
+    const ballShadow = new THREE.Mesh(shadowGeo, shadowMat);
+    ballShadow.rotation.x = -Math.PI / 2;
+    ballShadow.position.y = TABLE_HEIGHT + 0.42;
+    scene.add(ballShadow);
+
+    // Ball Physics State
+    const ball = {
+      x: 0,
+      y: TABLE_HEIGHT + 2.8,
+      z: 0,
+      vx: 0,
+      vy: 0.08,
+      vz: 0.28,
+      gravity: -0.008,
+      speedZ: 0.28
     };
 
-    window.addEventListener('mousemove', e => setPaddlePos(e.clientX));
-    window.addEventListener('touchmove', e => { e.preventDefault(); setPaddlePos(e.touches[0].clientX); }, { passive:false });
-    window.addEventListener('touchstart', e => { e.preventDefault(); setPaddlePos(e.touches[0].clientX); }, { passive:false });
+    function serveBall(toPlayer = true) {
+      ball.x = (Math.random() - 0.5) * 3;
+      ball.z = toPlayer ? -TABLE_LENGTH / 4 : TABLE_LENGTH / 4;
+      ball.y = TABLE_HEIGHT + 2.8;
+      ball.vx = (Math.random() - 0.5) * 0.08;
+      ball.vy = 0.1;
+      ball.vz = toPlayer ? 0.28 : -0.28;
+      ball.speedZ = 0.28;
+    }
 
-    function loop() {
-      if (!gameActive) return;
+    /* ==========================================================================
+       5. EXACT 3D PLANE RAYCASTING (100% 1-to-1 Cursor Following!)
+       ========================================================================== */
+    let playerScore = 0;
+    let cpuScore = 0;
+    let rallyCount = 0;
+    let maxRally = 0;
+    let isMatchActive = false;
+    const WINNING_SCORE = 7;
 
-      // Only Host (or Solo) updates authoritative ball physics
-      if (!isMultiplayer || isHost) {
-        // Ball Physics
-        ball.z += ball.vz;
+    const raycaster = new THREE.Raycaster();
+    const mouseVector = new THREE.Vector2();
+    const hitPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -TABLE_LENGTH / 2); // Plane at player paddle depth
+    const planeIntersectPoint = new THREE.Vector3();
+
+    let targetPaddleX = 0;
+    let targetPaddleY = TABLE_HEIGHT + 1.8;
+    let paddleVelocityX = 0;
+
+    function onPointerMove(clientX, clientY) {
+      mouseVector.x = (clientX / window.innerWidth) * 2 - 1;
+      mouseVector.y = -(clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVector, camera);
+      raycaster.ray.intersectPlane(hitPlane, planeIntersectPoint);
+
+      if (planeIntersectPoint) {
+        targetPaddleX = THREE.MathUtils.clamp(planeIntersectPoint.x, -TABLE_WIDTH / 2 - 2, TABLE_WIDTH / 2 + 2);
+        targetPaddleY = THREE.MathUtils.clamp(planeIntersectPoint.y, TABLE_HEIGHT + 0.6, TABLE_HEIGHT + 5.5);
+      }
+    }
+
+    window.addEventListener('mousemove', (e) => onPointerMove(e.clientX, e.clientY));
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+
+    function startMatch() {
+      try { getAudio(); } catch(e){}
+      playerScore = 0;
+      cpuScore = 0;
+      rallyCount = 0;
+      maxRally = 0;
+      updateScoreboard();
+      updateRallyDisplay();
+      document.getElementById('start-modal').style.display = 'none';
+      document.getElementById('gameover-modal').style.display = 'none';
+      isMatchActive = true;
+      serveBall(true);
+    }
+
+    function updateScoreboard() {
+      document.getElementById('score-player').textContent = playerScore;
+      document.getElementById('score-cpu').textContent = cpuScore;
+    }
+
+    function updateRallyDisplay() {
+      document.getElementById('rally-count').textContent = rallyCount;
+    }
+
+    function checkWinner() {
+      if (playerScore >= WINNING_SCORE || cpuScore >= WINNING_SCORE) {
+        isMatchActive = false;
+        const playerWon = playerScore >= WINNING_SCORE;
+        document.getElementById('over-title').textContent = playerWon ? '🎉 MATCH WON!' : '💔 CPU WON!';
+        document.getElementById('over-desc').innerHTML = playerWon 
+          ? `Champion! Highest rally: <b style="color:var(--accent)">${maxRally}</b> hits!`
+          : `Good try! Highest rally: <b style="color:var(--accent)">${maxRally}</b> hits. Try again!`;
+        document.getElementById('gameover-modal').style.display = 'flex';
+        if (window.ArcadeLeaderboard) {
+          window.ArcadeLeaderboard.submitScore('cyber-pong-3d', playerScore * 100 + maxRally * 10);
+        }
+      }
+    }
+
+    /* ==========================================================================
+       6. GAME ANIMATION LOOP & HITBOX COLLISION
+       ========================================================================== */
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isMatchActive) {
+        // 1. Player Paddle follows pointer with snappy 1-to-1 feel
+        paddleVelocityX = (targetPaddleX - playerPaddle.position.x);
+        playerPaddle.position.x = targetPaddleX;
+        playerPaddle.position.y = targetPaddleY;
+        playerPaddle.rotation.z = -paddleVelocityX * 0.08;
+
+        // 2. Friendly CPU AI
+        const cpuSpeed = 0.12;
+        const cpuTargetX = THREE.MathUtils.clamp(ball.x, -TABLE_WIDTH / 2 + 2, TABLE_WIDTH / 2 - 2);
+        const cpuTargetY = THREE.MathUtils.clamp(ball.y, TABLE_HEIGHT + 1.2, TABLE_HEIGHT + 3.8);
+
+        cpuPaddle.position.x += (cpuTargetX - cpuPaddle.position.x) * cpuSpeed;
+        cpuPaddle.position.y += (cpuTargetY - cpuPaddle.position.y) * cpuSpeed;
+        cpuPaddle.rotation.z = (cpuPaddle.position.x - cpuTargetX) * 0.08;
+
+        // 3. Ball Physics & Parabolic Arc
+        ball.vy += ball.gravity;
         ball.x += ball.vx;
-        ball.y += ball.vy * 0.25;
+        ball.y += ball.vy;
+        ball.z += ball.vz;
 
-        // Side Wall Bounces
-        if (ball.x < 140 || ball.x > 660) {
-          ball.vx *= -1;
-          playTone(350, 0.08);
-          if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 350, d: 0.08 } });
+        // Table Surface Bounce
+        const tableSurfaceY = TABLE_HEIGHT + 0.4 + BALL_RADIUS;
+        const inTableBounds = (Math.abs(ball.x) <= TABLE_WIDTH / 2 + 0.4 && Math.abs(ball.z) <= TABLE_LENGTH / 2);
+
+        if (ball.y <= tableSurfaceY && inTableBounds) {
+          ball.y = tableSurfaceY;
+          ball.vy = Math.abs(ball.vy) * 0.88 + 0.06;
+          playSound('table-bounce');
         }
 
-        // CPU AI tracking (Solo only)
-        if (!isMultiplayer) {
-          cpuX += (ball.x - cpuX) * 0.055;
-          cpuX = Math.max(160, Math.min(640, cpuX));
+        // 4. HUGE FORGIVING HITBOXES WITH SMART INWARD COURT AIMING
+        const HIT_WIDTH = 6.0;
+        const HIT_HEIGHT = 5.5;
+        const HIT_DEPTH = 3.8;
+
+        // Player Paddle Hit Check
+        const pDistZ = ball.z - playerPaddle.position.z;
+        const pDistX = ball.x - playerPaddle.position.x;
+        const pDistY = ball.y - playerPaddle.position.y;
+
+        if (ball.vz > 0 && Math.abs(pDistZ) < HIT_DEPTH && Math.abs(pDistX) < HIT_WIDTH && Math.abs(pDistY) < HIT_HEIGHT) {
+          ball.vz = -Math.abs(ball.speedZ);
+
+          // Smart Court Direction: When near the side edges, naturally angle the shot back inside toward opponent court center!
+          const edgeFactor = (playerPaddle.position.x / (TABLE_WIDTH / 2)); // -1 to +1
+          const inwardBias = -edgeFactor * 0.18; // Pulls shot towards center
+          const swipeInfluence = THREE.MathUtils.clamp(paddleVelocityX * 0.08, -0.22, 0.22);
+          const hitSpotInfluence = (pDistX / HIT_WIDTH) * 0.20;
+
+          ball.vx = hitSpotInfluence + inwardBias + swipeInfluence;
+          ball.vy = 0.15 + Math.max(0, pDistY * 0.03); // Natural arc over net
+          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
+          rallyCount++;
+          maxRally = Math.max(maxRally, rallyCount);
+          updateRallyDisplay();
+          playSound('paddle-hit');
         }
 
-        // P1 Paddle Hit (Front Z >= 0.88)
-        if (ball.z >= 0.88 && ball.vz > 0) {
-          if (Math.abs(ball.x - playerX) < 80) {
-            const nextSpeed = Math.min(0.0065, Math.abs(ball.vz) * 1.015);
-            ball.vz = -nextSpeed;
-            ball.vx = (ball.x - playerX) * 0.025;
-            playTone(600, 0.1);
-            if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 600, d: 0.1 } });
-            for (let i=0; i<8; i++) particles.push({ x: ball.x, y: 520, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5, life:1, color:'#00f5ff' });
-          } else if (ball.z >= 1.05) {
-            // Point for P2 / CPU
-            cScore++;
-            document.getElementById('c-score').textContent = cScore;
-            playTone(150, 0.3);
-            checkWin();
-            resetBall();
-          }
+        // CPU Paddle Hit Check
+        const cDistZ = ball.z - cpuPaddle.position.z;
+        const cDistX = ball.x - cpuPaddle.position.x;
+        const cDistY = ball.y - cpuPaddle.position.y;
+
+        if (ball.vz < 0 && Math.abs(cDistZ) < HIT_DEPTH && Math.abs(cDistX) < HIT_WIDTH && Math.abs(cDistY) < HIT_HEIGHT) {
+          ball.vz = Math.abs(ball.speedZ);
+          const cpuEdgeFactor = (cpuPaddle.position.x / (TABLE_WIDTH / 2));
+          const cpuInwardBias = -cpuEdgeFactor * 0.16;
+
+          ball.vx = (cDistX / HIT_WIDTH) * 0.20 + cpuInwardBias + (Math.random() - 0.5) * 0.04;
+          ball.vy = 0.15;
+          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
+          rallyCount++;
+          maxRally = Math.max(maxRally, rallyCount);
+          updateRallyDisplay();
+          playSound('paddle-hit');
         }
 
-        // P2 Paddle Hit (Back Z <= 0.12)
-        if (ball.z <= 0.12 && ball.vz < 0) {
-          if (Math.abs(ball.x - cpuX) < 70) {
-            const nextSpeed = Math.min(0.0065, Math.abs(ball.vz) * 1.015);
-            ball.vz = nextSpeed;
-            ball.vx = (ball.x - cpuX) * 0.025;
-            playTone(450, 0.1);
-            if (isMultiplayer) window.ArcadeMultiplayer.send({ sound: { f: 450, d: 0.1 } });
-          } else if (ball.z <= -0.03) {
-            // Point for P1
-            pScore++;
-            document.getElementById('p-score').textContent = pScore;
-            playTone(900, 0.2);
-            checkWin();
-            resetBall();
-          }
+        // 5. Scoring
+        if (ball.z > TABLE_LENGTH / 2 + 8 || ball.y < 0) {
+          cpuScore++;
+          playSound('point-cpu');
+          updateScoreboard();
+          checkWinner();
+          if (isMatchActive) serveBall(true);
+        } else if (ball.z < -TABLE_LENGTH / 2 - 8) {
+          playerScore++;
+          playSound('point-player');
+          updateScoreboard();
+          checkWinner();
+          if (isMatchActive) serveBall(false);
         }
 
-        // Host transmits 60fps game packet to Guest
-        if (isMultiplayer) {
-          window.ArcadeMultiplayer.send({
-            ball: { x: ball.x, y: ball.y, z: ball.z },
-            p1X: playerX,
-            p1Score: pScore,
-            p2Score: cScore
-          });
-        }
+        // Update Ball & Shadow Mesh
+        ballMesh.position.set(ball.x, ball.y, ball.z);
+        ballMesh.rotation.x += ball.vz * 0.25;
+        ballMesh.rotation.z -= ball.vx * 0.25;
+
+        ballShadow.position.set(ball.x, TABLE_HEIGHT + 0.41, ball.z);
+        const shadowScale = Math.max(0.4, 1.0 - (ball.y - TABLE_HEIGHT) * 0.12);
+        ballShadow.scale.set(shadowScale, shadowScale, shadowScale);
       }
 
-      // Render 3D Grid Court
-      ctx.fillStyle = '#070913'; ctx.fillRect(0, 0, 800, 600);
-
-      // 3D Perspective Tunnel
-      ctx.strokeStyle = 'rgba(0,245,255,0.25)'; ctx.lineWidth = 2;
-      ctx.strokeRect(100, 40, 600, 520);
-      ctx.strokeRect(260, 180, 280, 240);
-      ctx.beginPath();
-      ctx.moveTo(100, 40); ctx.lineTo(260, 180);
-      ctx.moveTo(700, 40); ctx.lineTo(540, 180);
-      ctx.moveTo(100, 560); ctx.lineTo(260, 420);
-      ctx.moveTo(700, 560); ctx.lineTo(540, 420);
-      ctx.stroke();
-
-      // Net (Middle Z = 0.5)
-      ctx.strokeStyle = 'rgba(255,0,127,0.4)'; ctx.setLineDash([8, 8]);
-      ctx.strokeRect(180, 110, 440, 380);
-      ctx.setLineDash([]);
-
-      // Draw P2 / CPU Paddle (Back Z = 0.05)
-      const cpuP = 0.35;
-      const cpuPadW = 100 * cpuP;
-      const cpuPadH = 40 * cpuP;
-      const cPaddleX = isMultiplayer && !isHost ? playerX : cpuX;
-      ctx.fillStyle = '#ff007f';
-      ctx.shadowColor = '#ff007f'; ctx.shadowBlur = 15;
-      ctx.fillRect(cPaddleX - cpuPadW/2, 290, cpuPadW, cpuPadH);
-
-      // Draw P1 Paddle (Front Z = 0.95)
-      const p1PadX = isMultiplayer && !isHost ? cpuX : playerX;
-      ctx.fillStyle = '#00f5ff';
-      ctx.shadowColor = '#00f5ff'; ctx.shadowBlur = 20;
-      ctx.fillRect(p1PadX - 60, 510, 120, 20);
-      ctx.shadowBlur = 0;
-
-      // Draw 3D Ball
-      const ballP = 0.35 + ball.z * 0.65;
-      const bRad = ball.r * ballP;
-      const bY = 200 + ball.z * 300 + (ball.y - 300) * ballP;
-      ctx.fillStyle = ballP > 0.5 ? '#00f5ff' : '#ff007f';
-      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 25;
-      ctx.beginPath(); ctx.arc(ball.x, bY, bRad, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Particles
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.life -= 0.04;
-        if (p.life <= 0) { particles.splice(i, 1); continue; }
-        ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
-        ctx.fillRect(p.x, p.y, 4, 4);
-        ctx.globalAlpha = 1;
-      }
-
-      requestAnimationFrame(loop);
+      renderer.render(scene, camera);
     }
+    requestAnimationFrame(animate);
 
-    function checkWin() {
-      if (pScore >= 7 || cScore >= 7) {
-        gameActive = false;
-        let winText = '';
-        if (isMultiplayer) {
-          winText = pScore >= 7 ? (isHost ? 'YOU WIN! 🏆' : 'P1 WINS! 🏆') : (isHost ? 'P2 WINS! 🏆' : 'YOU WIN! 🏆');
-          window.ArcadeMultiplayer.send({ win: winText });
-        } else {
-          winText = pScore >= 7 ? 'YOU WIN! 🏆' : 'CPU WINS! 🤖';
-        }
-        document.getElementById('modal-title').textContent = winText;
-        document.getElementById('modal').style.display = 'flex';
-        try {
-          if (window.ArcadeLeaderboard) {
-            window.ArcadeLeaderboard.submitScore('cyber-pong-3d', pScore * 100);
-          }
-        } catch(e){}
-      }
-    }
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
