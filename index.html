@@ -669,10 +669,10 @@
           playSound('table-bounce');
         }
 
-        // 4. HUGE FORGIVING HITBOXES (Hit width: 5.5 units, Height: 5.5 units, Depth: 3.5 units!)
-        const HIT_WIDTH = 5.5;
+        // 4. HUGE FORGIVING HITBOXES WITH SMART INWARD COURT AIMING
+        const HIT_WIDTH = 6.0;
         const HIT_HEIGHT = 5.5;
-        const HIT_DEPTH = 3.5;
+        const HIT_DEPTH = 3.8;
 
         // Player Paddle Hit Check
         const pDistZ = ball.z - playerPaddle.position.z;
@@ -681,9 +681,16 @@
 
         if (ball.vz > 0 && Math.abs(pDistZ) < HIT_DEPTH && Math.abs(pDistX) < HIT_WIDTH && Math.abs(pDistY) < HIT_HEIGHT) {
           ball.vz = -Math.abs(ball.speedZ);
-          ball.vx = (pDistX / HIT_WIDTH) * 0.32 + (paddleVelocityX * 0.06);
-          ball.vy = 0.14 + Math.max(0, pDistY * 0.03);
-          ball.speedZ = Math.min(0.48, ball.speedZ + 0.008);
+
+          // Smart Court Direction: When near the side edges, naturally angle the shot back inside toward opponent court center!
+          const edgeFactor = (playerPaddle.position.x / (TABLE_WIDTH / 2)); // -1 to +1
+          const inwardBias = -edgeFactor * 0.18; // Pulls shot towards center
+          const swipeInfluence = THREE.MathUtils.clamp(paddleVelocityX * 0.08, -0.22, 0.22);
+          const hitSpotInfluence = (pDistX / HIT_WIDTH) * 0.20;
+
+          ball.vx = hitSpotInfluence + inwardBias + swipeInfluence;
+          ball.vy = 0.15 + Math.max(0, pDistY * 0.03); // Natural arc over net
+          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
           rallyCount++;
           maxRally = Math.max(maxRally, rallyCount);
           updateRallyDisplay();
@@ -697,9 +704,12 @@
 
         if (ball.vz < 0 && Math.abs(cDistZ) < HIT_DEPTH && Math.abs(cDistX) < HIT_WIDTH && Math.abs(cDistY) < HIT_HEIGHT) {
           ball.vz = Math.abs(ball.speedZ);
-          ball.vx = (cDistX / HIT_WIDTH) * 0.28 + (Math.random() - 0.5) * 0.05;
-          ball.vy = 0.14;
-          ball.speedZ = Math.min(0.48, ball.speedZ + 0.008);
+          const cpuEdgeFactor = (cpuPaddle.position.x / (TABLE_WIDTH / 2));
+          const cpuInwardBias = -cpuEdgeFactor * 0.16;
+
+          ball.vx = (cDistX / HIT_WIDTH) * 0.20 + cpuInwardBias + (Math.random() - 0.5) * 0.04;
+          ball.vy = 0.15;
+          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
           rallyCount++;
           maxRally = Math.max(maxRally, rallyCount);
           updateRallyDisplay();
