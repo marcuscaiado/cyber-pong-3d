@@ -199,6 +199,28 @@
       align-items: center;
       gap: 6px;
     }
+
+    /* Point Scored Toast */
+    .point-toast {
+      position: absolute;
+      top: 85px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18, 14, 30, 0.92);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--primary);
+      padding: 10px 24px;
+      border-radius: 18px;
+      font-size: 16px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(255, 94, 151, 0.6);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 20px rgba(255, 94, 151, 0.3);
+      pointer-events: none;
+      z-index: 80;
+      text-align: center;
+      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
   </style>
 </head>
 <body>
@@ -229,6 +251,9 @@
     <div class="controls-hint">
       <span>🏓 Your Kawaii Paddle IS your mouse! Move anywhere across the court to hit the ball! ✨</span>
     </div>
+
+    <!-- Point Alert Banner -->
+    <div id="point-toast" class="point-toast" style="display: none;"></div>
 
     <!-- Start Modal -->
     <div id="start-modal" class="modal-overlay">
@@ -546,14 +571,24 @@
       speedZ: 0.28
     };
 
+    let lastHitter = 'cpu';
+    let bouncedOnCpuCourt = false;
+    let bouncedOnPlayerCourt = false;
+    let pointInProgress = false;
+
     function serveBall(toPlayer = true) {
-      ball.x = (Math.random() - 0.5) * 3;
+      ball.x = (Math.random() - 0.5) * 4;
       ball.z = toPlayer ? -TABLE_LENGTH / 4 : TABLE_LENGTH / 4;
-      ball.y = TABLE_HEIGHT + 2.8;
+      ball.y = TABLE_HEIGHT + 2.6;
       ball.vx = (Math.random() - 0.5) * 0.08;
       ball.vy = 0.1;
       ball.vz = toPlayer ? 0.28 : -0.28;
       ball.speedZ = 0.28;
+
+      lastHitter = toPlayer ? 'cpu' : 'player';
+      bouncedOnCpuCourt = false;
+      bouncedOnPlayerCourt = false;
+      pointInProgress = false;
     }
 
     /* ==========================================================================
@@ -599,6 +634,7 @@
       cpuScore = 0;
       rallyCount = 0;
       maxRally = 0;
+      pointInProgress = false;
       updateScoreboard();
       updateRallyDisplay();
       document.getElementById('start-modal').style.display = 'none';
@@ -614,6 +650,45 @@
 
     function updateRallyDisplay() {
       document.getElementById('rally-count').textContent = rallyCount;
+    }
+
+    function showPointToast(title, reason = '') {
+      const toast = document.getElementById('point-toast');
+      if (toast) {
+        toast.innerHTML = `<div style="font-size:16px;">${title}</div>${reason ? `<div style="font-size:12px; font-weight:700; opacity:0.85; margin-top:3px; color:#ffd166;">${reason}</div>` : ''}`;
+        toast.style.display = 'block';
+        setTimeout(() => {
+          if (toast) toast.style.display = 'none';
+        }, 1100);
+      }
+    }
+
+    function awardPoint(winner, reason = '') {
+      if (pointInProgress || !isMatchActive) return;
+      pointInProgress = true;
+
+      if (winner === 'player') {
+        playerScore++;
+        playSound('point-player');
+        showPointToast('🌸 POINT TO YOU! (+1)', reason);
+      } else {
+        cpuScore++;
+        playSound('point-cpu');
+        showPointToast('🤖 POINT TO CPU!', reason);
+      }
+
+      rallyCount = 0;
+      updateRallyDisplay();
+      updateScoreboard();
+      checkWinner();
+
+      if (isMatchActive) {
+        setTimeout(() => {
+          if (isMatchActive) {
+            serveBall(winner === 'cpu'); // Receiver serves next
+          }
+        }, 900);
+      }
     }
 
     function checkWinner() {
@@ -644,14 +719,26 @@
         playerPaddle.position.y = targetPaddleY;
         playerPaddle.rotation.z = -paddleVelocityX * 0.08;
 
-        // 2. Friendly CPU AI
-        const cpuSpeed = 0.12;
-        const cpuTargetX = THREE.MathUtils.clamp(ball.x, -TABLE_WIDTH / 2 + 2, TABLE_WIDTH / 2 - 2);
-        const cpuTargetY = THREE.MathUtils.clamp(ball.y, TABLE_HEIGHT + 1.2, TABLE_HEIGHT + 3.8);
+        // 2. Balanced Kawaii CPU AI
+        const cpuSpeed = 0.088; // Tuned for fair rallies and rewarding skill shots
+        let cpuTargetX = 0;
+        let cpuTargetY = TABLE_HEIGHT + 1.8;
+
+        if (ball.vz < 0) {
+          // Ball traveling towards CPU: predict and intercept
+          // Slight human-like error offset on fast rallies or wide angles
+          const rallyWobble = (rallyCount > 3) ? Math.sin(Date.now() * 0.005) * Math.min(2.2, rallyCount * 0.25) : 0;
+          cpuTargetX = THREE.MathUtils.clamp(ball.x + rallyWobble, -TABLE_WIDTH / 2 + 1.2, TABLE_WIDTH / 2 - 1.2);
+          cpuTargetY = THREE.MathUtils.clamp(ball.y, TABLE_HEIGHT + 1.0, TABLE_HEIGHT + 3.8);
+        } else {
+          // Ball traveling towards player: smoothly glide back toward center
+          cpuTargetX = 0;
+          cpuTargetY = TABLE_HEIGHT + 1.8;
+        }
 
         cpuPaddle.position.x += (cpuTargetX - cpuPaddle.position.x) * cpuSpeed;
         cpuPaddle.position.y += (cpuTargetY - cpuPaddle.position.y) * cpuSpeed;
-        cpuPaddle.rotation.z = (cpuPaddle.position.x - cpuTargetX) * 0.08;
+        cpuPaddle.rotation.z = (cpuPaddle.position.x - cpuTargetX) * 0.06;
 
         // 3. Ball Physics & Parabolic Arc
         ball.vy += ball.gravity;
@@ -661,17 +748,23 @@
 
         // Table Surface Bounce
         const tableSurfaceY = TABLE_HEIGHT + 0.4 + BALL_RADIUS;
-        const inTableBounds = (Math.abs(ball.x) <= TABLE_WIDTH / 2 + 0.4 && Math.abs(ball.z) <= TABLE_LENGTH / 2);
+        const inTableBounds = (Math.abs(ball.x) <= TABLE_WIDTH / 2 + 0.35 && Math.abs(ball.z) <= TABLE_LENGTH / 2);
 
         if (ball.y <= tableSurfaceY && inTableBounds) {
           ball.y = tableSurfaceY;
           ball.vy = Math.abs(ball.vy) * 0.88 + 0.06;
           playSound('table-bounce');
+
+          if (ball.z < 0) {
+            bouncedOnCpuCourt = true;
+          } else {
+            bouncedOnPlayerCourt = true;
+          }
         }
 
-        // 4. HUGE FORGIVING HITBOXES WITH SMART INWARD COURT AIMING
-        const HIT_WIDTH = 6.0;
-        const HIT_HEIGHT = 5.5;
+        // 4. HUGE FORGIVING HITBOXES FOR PLAYER
+        const HIT_WIDTH = 5.8;
+        const HIT_HEIGHT = 5.2;
         const HIT_DEPTH = 3.8;
 
         // Player Paddle Hit Check
@@ -679,56 +772,87 @@
         const pDistX = ball.x - playerPaddle.position.x;
         const pDistY = ball.y - playerPaddle.position.y;
 
-        if (ball.vz > 0 && Math.abs(pDistZ) < HIT_DEPTH && Math.abs(pDistX) < HIT_WIDTH && Math.abs(pDistY) < HIT_HEIGHT) {
+        if (!pointInProgress && ball.vz > 0 && Math.abs(pDistZ) < HIT_DEPTH && Math.abs(pDistX) < HIT_WIDTH && Math.abs(pDistY) < HIT_HEIGHT) {
           ball.vz = -Math.abs(ball.speedZ);
 
-          // Smart Court Direction: When near the side edges, naturally angle the shot back inside toward opponent court center!
-          const edgeFactor = (playerPaddle.position.x / (TABLE_WIDTH / 2)); // -1 to +1
-          const inwardBias = -edgeFactor * 0.18; // Pulls shot towards center
+          // Smart Court Direction: naturally angles return towards opponent court center
+          const edgeFactor = (playerPaddle.position.x / (TABLE_WIDTH / 2));
+          const inwardBias = -edgeFactor * 0.18;
           const swipeInfluence = THREE.MathUtils.clamp(paddleVelocityX * 0.08, -0.22, 0.22);
           const hitSpotInfluence = (pDistX / HIT_WIDTH) * 0.20;
 
           ball.vx = hitSpotInfluence + inwardBias + swipeInfluence;
-          ball.vy = 0.15 + Math.max(0, pDistY * 0.03); // Natural arc over net
-          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
+          ball.vy = 0.15 + Math.max(0, pDistY * 0.03);
+          ball.speedZ = Math.min(0.46, ball.speedZ + 0.006);
+
           rallyCount++;
           maxRally = Math.max(maxRally, rallyCount);
           updateRallyDisplay();
           playSound('paddle-hit');
+
+          lastHitter = 'player';
+          bouncedOnCpuCourt = false;
+          bouncedOnPlayerCourt = false;
         }
 
-        // CPU Paddle Hit Check
+        // CPU Paddle Hit Check (Balanced hitbox)
+        const CPU_HIT_WIDTH = 4.2;
+        const CPU_HIT_HEIGHT = 4.0;
+        const CPU_HIT_DEPTH = 3.2;
+
         const cDistZ = ball.z - cpuPaddle.position.z;
         const cDistX = ball.x - cpuPaddle.position.x;
         const cDistY = ball.y - cpuPaddle.position.y;
 
-        if (ball.vz < 0 && Math.abs(cDistZ) < HIT_DEPTH && Math.abs(cDistX) < HIT_WIDTH && Math.abs(cDistY) < HIT_HEIGHT) {
+        if (!pointInProgress && ball.vz < 0 && Math.abs(cDistZ) < CPU_HIT_DEPTH && Math.abs(cDistX) < CPU_HIT_WIDTH && Math.abs(cDistY) < CPU_HIT_HEIGHT) {
           ball.vz = Math.abs(ball.speedZ);
           const cpuEdgeFactor = (cpuPaddle.position.x / (TABLE_WIDTH / 2));
           const cpuInwardBias = -cpuEdgeFactor * 0.16;
 
-          ball.vx = (cDistX / HIT_WIDTH) * 0.20 + cpuInwardBias + (Math.random() - 0.5) * 0.04;
+          ball.vx = (cDistX / CPU_HIT_WIDTH) * 0.20 + cpuInwardBias + (Math.random() - 0.5) * 0.04;
           ball.vy = 0.15;
-          ball.speedZ = Math.min(0.48, ball.speedZ + 0.006);
+          ball.speedZ = Math.min(0.46, ball.speedZ + 0.006);
+
           rallyCount++;
           maxRally = Math.max(maxRally, rallyCount);
           updateRallyDisplay();
           playSound('paddle-hit');
+
+          lastHitter = 'cpu';
+          bouncedOnCpuCourt = false;
+          bouncedOnPlayerCourt = false;
         }
 
-        // 5. Scoring
-        if (ball.z > TABLE_LENGTH / 2 + 8 || ball.y < 0) {
-          cpuScore++;
-          playSound('point-cpu');
-          updateScoreboard();
-          checkWinner();
-          if (isMatchActive) serveBall(true);
-        } else if (ball.z < -TABLE_LENGTH / 2 - 8) {
-          playerScore++;
-          playSound('point-player');
-          updateScoreboard();
-          checkWinner();
-          if (isMatchActive) serveBall(false);
+        // 5. Authentic Fair Scoring
+        if (!pointInProgress) {
+          // Ball on CPU side (z < 0): check if CPU missed or ball dropped
+          if (ball.z < -TABLE_LENGTH / 2 - 1.2 || (ball.z < 0 && ball.y < TABLE_HEIGHT - 0.4)) {
+            if (bouncedOnCpuCourt) {
+              // Valid shot by player! CPU missed the return!
+              awardPoint('player', 'CPU Missed!');
+            } else {
+              // Player shot flew out of bounds without landing on CPU court
+              awardPoint('cpu', 'Shot out of bounds');
+            }
+          }
+          // Ball on Player side (z > 0): check if Player missed or ball dropped
+          else if (ball.z > TABLE_LENGTH / 2 + 1.2 || (ball.z > 0 && ball.y < TABLE_HEIGHT - 0.4)) {
+            if (bouncedOnPlayerCourt) {
+              // Valid shot by CPU! Player missed the return!
+              awardPoint('cpu', 'Missed shot');
+            } else {
+              // CPU shot flew out of bounds!
+              awardPoint('player', 'CPU hit out!');
+            }
+          }
+          // Ball fell to stadium floor anywhere (y < 0.8)
+          else if (ball.y < 0.8) {
+            if (ball.z < 0) {
+              awardPoint(bouncedOnCpuCourt ? 'player' : 'cpu', bouncedOnCpuCourt ? 'CPU Missed!' : 'Out of bounds');
+            } else {
+              awardPoint(bouncedOnPlayerCourt ? 'cpu' : 'player', bouncedOnPlayerCourt ? 'Missed shot' : 'CPU hit out!');
+            }
+          }
         }
 
         // Update Ball & Shadow Mesh
