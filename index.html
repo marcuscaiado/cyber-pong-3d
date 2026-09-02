@@ -221,10 +221,20 @@
       text-align: center;
       animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+    }
   </style>
 </head>
 <body>
   <div id="game-container">
+    <canvas id="confetti-canvas"></canvas>
     <canvas id="webgl-canvas"></canvas>
 
     <div class="hud-header">
@@ -302,50 +312,124 @@
       }, { once: true });
     });
 
+    /* =============================================
+       QUAD-COLOR CONFETTI CANNON (Spectrum Engine)
+       ============================================= */
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const confettiCtx = confettiCanvas ? confettiCanvas.getContext('2d') : null;
+    const confettiParticles = [];
+    const QUAD_COLORS = ['#00f5ff', '#ff007f', '#ffd166', '#05ffa1', '#8ab4f8', '#f28b82', '#c084fc'];
+
+    function resizeConfetti() {
+      if (confettiCanvas) {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+      }
+    }
+    window.addEventListener('resize', resizeConfetti);
+    resizeConfetti();
+
+    function explodeConfetti(x = window.innerWidth / 2, y = window.innerHeight * 0.4, count = 55) {
+      for (let i = 0; i < count; i++) {
+        confettiParticles.push({
+          x, y,
+          color: QUAD_COLORS[Math.floor(Math.random() * QUAD_COLORS.length)],
+          size: Math.random() * 8 + 5,
+          speedX: (Math.random() - 0.5) * 16,
+          speedY: (Math.random() - 0.8) * 18,
+          gravity: 0.45,
+          opacity: 1,
+          decay: Math.random() * 0.02 + 0.015,
+          rotation: Math.random() * 360,
+          rotSpeed: (Math.random() - 0.5) * 10
+        });
+      }
+    }
+
+    function renderConfetti() {
+      if (confettiCtx && confettiCanvas) {
+        confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        for (let i = confettiParticles.length - 1; i >= 0; i--) {
+          const p = confettiParticles[i];
+          p.x += p.speedX;
+          p.y += p.speedY;
+          p.speedY += p.gravity;
+          p.opacity -= p.decay;
+          p.rotation += p.rotSpeed;
+
+          if (p.opacity <= 0) {
+            confettiParticles.splice(i, 1);
+            continue;
+          }
+
+          confettiCtx.save();
+          confettiCtx.globalAlpha = Math.max(0, p.opacity);
+          confettiCtx.translate(p.x, p.y);
+          confettiCtx.rotate((p.rotation * Math.PI) / 180);
+          confettiCtx.fillStyle = p.color;
+          confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          confettiCtx.restore();
+        }
+      }
+      requestAnimationFrame(renderConfetti);
+    }
+    renderConfetti();
+
     function playSound(type) {
       if (isSoundMuted) return;
       try {
         const ctx = getAudio();
         const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
 
         if (type === 'paddle-hit') {
-          // Playful rubber ping
+          // Bouncy tactile celluloid pop
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
           osc.type = 'triangle';
-          osc.frequency.setValueAtTime(580, now);
-          osc.frequency.exponentialRampToValueAtTime(860, now + 0.08);
-          gain.gain.setValueAtTime(0.35, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          osc.frequency.setValueAtTime(620, now);
+          osc.frequency.exponentialRampToValueAtTime(940, now + 0.065);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
           osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.1);
+          osc.start(now); osc.stop(now + 0.075);
         } else if (type === 'table-bounce') {
-          // Hollow wood table ping
+          // Dense hollow wood ping
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(320, now);
-          osc.frequency.exponentialRampToValueAtTime(160, now + 0.06);
-          gain.gain.setValueAtTime(0.25, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.frequency.setValueAtTime(340, now);
+          osc.frequency.exponentialRampToValueAtTime(170, now + 0.06);
+          gain.gain.setValueAtTime(0.24, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
           osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.08);
+          osc.start(now); osc.stop(now + 0.07);
         } else if (type === 'point-player') {
-          [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
-            const o = ctx.createOscillator(); const g = ctx.createGain();
-            o.type = 'sine';
-            o.frequency.setValueAtTime(freq, now + i * 0.07);
-            g.gain.setValueAtTime(0.22, now + i * 0.07);
-            g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.22);
+          // Celestial Dopamine Arpeggio (C5, E5, G5, C6, E6) + Confetti Burst
+          explodeConfetti(window.innerWidth / 2, window.innerHeight * 0.35, 60);
+          const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+          notes.forEach((freq, i) => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(freq, now + i * 0.055);
+            g.gain.setValueAtTime(0, now + i * 0.055);
+            g.gain.linearRampToValueAtTime(0.18, now + i * 0.055 + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.055 + 0.38);
             o.connect(g); g.connect(ctx.destination);
-            o.start(now + i * 0.07); o.stop(now + i * 0.07 + 0.22);
+            o.start(now + i * 0.055); o.stop(now + i * 0.055 + 0.4);
           });
         } else if (type === 'point-cpu') {
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(300, now);
-          osc.frequency.exponentialRampToValueAtTime(120, now + 0.25);
-          gain.gain.setValueAtTime(0.18, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(now); osc.stop(now + 0.28);
+          // Warm, comforting gentle descending chime (no harsh buzz)
+          [440.00, 392.00, 349.23].forEach((freq, i) => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(freq, now + i * 0.07);
+            g.gain.setValueAtTime(0.14, now + i * 0.07);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.07 + 0.25);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(now + i * 0.07); o.stop(now + i * 0.07 + 0.25);
+          });
         }
       } catch (e) {}
     }
