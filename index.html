@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Kawaii Table Tennis 3D 🏓🌸 — Instant Hit & Clean 3D</title>
+  <script src="arcade-sound-engine.js"></script>
   <script src="arcade-leaderboard.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
@@ -377,6 +378,22 @@
 
     function playSound(type) {
       if (isSoundMuted) return;
+      if (window.arcadeAudio) {
+        if (type === 'paddle-hit') {
+          window.arcadeAudio.playBounce(1.1, 'wood');
+          return;
+        } else if (type === 'table-bounce') {
+          window.arcadeAudio.playBounce(0.85, 'wood');
+          return;
+        } else if (type === 'point-player') {
+          explodeConfetti(window.innerWidth / 2, window.innerHeight * 0.35, 60);
+          window.arcadeAudio.playTriumph();
+          return;
+        } else if (type === 'point-cpu') {
+          window.arcadeAudio.playSoftThud(1.1);
+          return;
+        }
+      }
       try {
         const ctx = getAudio();
         const now = ctx.currentTime;
