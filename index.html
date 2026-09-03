@@ -232,7 +232,16 @@
       pointer-events: none;
       z-index: 9999;
     }
-  </style>
+  
+/* Universal Mobile Touch & Top Navigation Safeguards */
+.arcade-nav, .arcade-link, .nav-btn-arcade, .arcade-corner-btn, .arcade-btn, .btn-arcade, a[href*="arcad"], #modal a, #modal button, .modal a, .modal button, #game-over-modal a, #game-over-modal button {
+  pointer-events: auto !important;
+  touch-action: auto !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(0, 245, 255, 0.4);
+}
+
+</style>
 </head>
 <body>
   <div id="game-container">
@@ -255,7 +264,7 @@
         </div>
       </div>
 
-      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-btn">
+      <a href="https://marcuscaiado.github.io/marcus-arcade/" class="arcade-btn" target="_top" onclick="if(window.top){window.top.location.href=this.href;return false;}" ontouchend="if(window.top){window.top.location.href=this.href;return false;}">
         🕹️ <span>Arcade Hub</span>
       </a>
     </div>
