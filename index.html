@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Kawaii Table Tennis 3D 🏓🌸 — Instant Hit & Clean 3D</title>
   <script src="arcade-sound-engine.js"></script>
+  <script src="arcade-difficulty.js"></script>
   <script src="arcade-leaderboard.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
@@ -730,6 +731,7 @@
     }, { passive: false });
 
     function startMatch() {
+      if (window.ArcadeDifficulty) ArcadeDifficulty.reset();
       try { getAudio(); } catch(e){}
       playerScore = 0;
       cpuScore = 0;
@@ -821,7 +823,9 @@
         playerPaddle.rotation.z = -paddleVelocityX * 0.08;
 
         // 2. Balanced Kawaii CPU AI
-        const cpuSpeed = 0.088; // Tuned for fair rallies and rewarding skill shots
+        const matchTotalScore = playerScore * 100 + maxRally * 15;
+        const ddaMult = window.ArcadeDifficulty ? ArcadeDifficulty.getMultiplier(matchTotalScore, 700, 1.8) : 1.0;
+        const cpuSpeed = Math.min(0.14, 0.088 * (0.9 + 0.1 * ddaMult)); // Tuned with DDA for fair rallies and rewarding skill shots
         let cpuTargetX = 0;
         let cpuTargetY = TABLE_HEIGHT + 1.8;
 
@@ -863,9 +867,9 @@
           }
         }
 
-        // 4. HUGE FORGIVING HITBOXES FOR PLAYER
-        const HIT_WIDTH = 5.8;
-        const HIT_HEIGHT = 5.2;
+        // 4. HUGE FORGIVING HITBOXES FOR PLAYER (Dynamic curve: early forgiving, late skill test)
+        const HIT_WIDTH = Math.max(4.6, 5.8 - (ddaMult - 1.0) * 0.8);
+        const HIT_HEIGHT = Math.max(4.2, 5.2 - (ddaMult - 1.0) * 0.7);
         const HIT_DEPTH = 3.8;
 
         // Player Paddle Hit Check
